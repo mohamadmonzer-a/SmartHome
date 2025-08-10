@@ -11,15 +11,15 @@
   }
   body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: #e4e9f2;
+    background: #f0f4ff;
     margin: 2rem auto;
     max-width: 480px;
     padding: 1rem 2rem 3rem 2rem;
-    color: #333;
+    color: #222;
   }
   h1 {
     text-align: center;
-    color: #2c3e50;
+    color: #1e40af;
     margin-bottom: 1.5rem;
   }
   button, select {
@@ -32,12 +32,12 @@
     transition: background-color 0.3s ease;
   }
   button {
-    background-color: #3b82f6;
+    background-color: #2563eb;
     color: white;
-    box-shadow: 0 3px 6px rgba(59,130,246,0.3);
+    box-shadow: 0 3px 6px rgba(37, 99, 235, 0.3);
   }
   button:hover:not(:disabled) {
-    background-color: #2563eb;
+    background-color: #1e40af;
   }
   button:disabled {
     background-color: #a5b4fc;
@@ -47,10 +47,10 @@
   select {
     width: 100%;
     background: white;
-    border: 1.5px solid #ccc;
+    border: 1.5px solid #bbb;
     border-radius: 6px;
     padding: 0.5rem 0.8rem;
-    color: #444;
+    color: #333;
   }
   label {
     font-weight: 600;
@@ -62,7 +62,7 @@
     background: white;
     padding: 1rem 1.5rem;
     border-radius: 10px;
-    box-shadow: 0 6px 10px rgb(0 0 0 / 0.1);
+    box-shadow: 0 6px 12px rgb(0 0 0 / 0.1);
   }
   #controlButtons {
     margin-top: 1.5rem;
@@ -75,21 +75,26 @@
   #status, #error, #currentState {
     margin-top: 1rem;
     padding: 0.8rem 1rem;
-    border-radius: 6px;
+    border-radius: 8px;
     font-weight: 600;
     user-select: none;
   }
   #status {
-    background: #daf0d6;
-    color: #27632a;
+    background: #d1fae5;
+    color: #065f46;
   }
   #error {
-    background: #f8d7da;
-    color: #7f1d1d;
+    background: #fee2e2;
+    color: #b91c1c;
   }
   #currentState {
     background: #e0e7ff;
     color: #3730a3;
+    line-height: 1.5;
+  }
+  #currentState span.label {
+    font-weight: 700;
+    margin-right: 0.5rem;
   }
 </style>
 </head>
@@ -117,7 +122,11 @@
   <button id="btnExecute" style="display:none;">Execute Scene</button>
 </div>
 
-<div id="currentState" style="display:none;">Current State: <span id="stateValue">N/A</span></div>
+<div id="currentState" style="display:none;">
+  <div><span class="label">Health Status:</span><span id="healthStatus">N/A</span></div>
+  <div><span class="label">Switch Status:</span><span id="switchStatus">N/A</span></div>
+</div>
+
 <div id="status" style="display:none;"></div>
 <div id="error" style="display:none;"></div>
 
@@ -135,14 +144,14 @@
   const statusDiv = document.getElementById('status');
   const errorDiv = document.getElementById('error');
   const currentStateDiv = document.getElementById('currentState');
-  const stateValueSpan = document.getElementById('stateValue');
+  const healthStatusSpan = document.getElementById('healthStatus');
+  const switchStatusSpan = document.getElementById('switchStatus');
 
   let currentSelection = { type: null, id: null };
 
   scanBtn.onclick = async () => {
     clearMessages();
-    statusDiv.style.display = 'block';
-    statusDiv.textContent = 'Scanning devices and scenes...';
+    showStatus('Scanning devices and scenes...');
     try {
       const [devicesRes, scenesRes] = await Promise.all([
         fetch(`${WORKER_URL}/devices`),
@@ -170,11 +179,9 @@
       selectorsDiv.style.display = 'block';
       controlButtonsDiv.style.display = 'none';
       currentStateDiv.style.display = 'none';
-      statusDiv.textContent = 'Scan complete. Select device or scene.';
+      showStatus('Scan complete. Select a device or scene.');
     } catch (err) {
-      errorDiv.style.display = 'block';
-      errorDiv.textContent = 'Error scanning devices/scenes: ' + err.message;
-      statusDiv.style.display = 'none';
+      showError('Error scanning devices/scenes: ' + err.message);
       selectorsDiv.style.display = 'none';
       controlButtonsDiv.style.display = 'none';
       currentStateDiv.style.display = 'none';
@@ -200,7 +207,6 @@
       btnExecute.style.display = 'none';
       controlButtonsDiv.style.display = 'block';
 
-      // Fetch current device status
       await fetchDeviceStatus(currentSelection.id);
     } else {
       currentSelection = { type: null, id: null };
@@ -228,36 +234,36 @@
 
   async function fetchDeviceStatus(deviceId) {
     currentStateDiv.style.display = 'block';
-    stateValueSpan.textContent = 'Loading...';
+    healthStatusSpan.textContent = 'Loading...';
+    switchStatusSpan.textContent = 'Loading...';
 
     try {
       const res = await fetch(`${WORKER_URL}/device-status?id=${encodeURIComponent(deviceId)}`);
       if (!res.ok) throw new Error('Failed to fetch device status');
       const data = await res.json();
 
-      // Try to find switch state (usually capability "switch" with attribute "switch")
-      let switchState = "Unknown";
+      // Default values
+      let healthStatus = "Unknown";
+      let switchStatus = "Unknown";
 
-      // Loop through components and capabilities to find the switch state attribute
-      if (data.components) {
-        for (const comp of Object.values(data.components)) {
-          if (comp.capabilities) {
-            for (const cap of Object.values(comp.capabilities)) {
-              if (cap.attributes && cap.attributes.switch && cap.attributes.switch.value) {
-                switchState = cap.attributes.switch.value;
-                break;
-              }
-            }
-          }
-          if (switchState !== "Unknown") break;
+      if (data.components && data.components.main) {
+        // Health Status
+        if (data.components.main.healthCheck && data.components.main.healthCheck["DeviceWatch-DeviceStatus"] && data.components.main.healthCheck["DeviceWatch-DeviceStatus"].value) {
+          healthStatus = data.components.main.healthCheck["DeviceWatch-DeviceStatus"].value;
+        }
+        // Switch Status
+        if (data.components.main.switch && data.components.main.switch.switch && data.components.main.switch.switch.value) {
+          switchStatus = data.components.main.switch.switch.value;
         }
       }
 
-      stateValueSpan.textContent = switchState.charAt(0).toUpperCase() + switchState.slice(1);
+      // Capitalize first letter
+      healthStatusSpan.textContent = capitalizeFirst(healthStatus);
+      switchStatusSpan.textContent = capitalizeFirst(switchStatus);
     } catch (err) {
-      stateValueSpan.textContent = 'Error loading state';
-      errorDiv.style.display = 'block';
-      errorDiv.textContent = 'Error fetching device status: ' + err.message;
+      healthStatusSpan.textContent = 'Error';
+      switchStatusSpan.textContent = 'Error';
+      showError('Error fetching device status: ' + err.message);
     }
   }
 
@@ -293,7 +299,7 @@
       await res.json();
       showStatus('Command sent successfully.');
 
-      // Refresh device status if controlling device
+      // Refresh device status if device controlled
       if (currentSelection.type === 'device') {
         await fetchDeviceStatus(currentSelection.id);
       }
@@ -322,8 +328,10 @@
     statusDiv.style.display = 'none';
     statusDiv.textContent = '';
   }
-
-  // Simple HTML escape to prevent injection in option text
+  function capitalizeFirst(str) {
+    if (!str) return '';
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
   function escapeHtml(text) {
     return text.replace(/[&<>"']/g, function(m) {
       return ({
