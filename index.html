@@ -77,13 +77,15 @@
       // Populate devices dropdown
       deviceSelect.innerHTML = '<option value="">-- Select device --</option>';
       devicesData.items.forEach(device => {
-        deviceSelect.innerHTML += `<option value="${device.deviceId}">${device.name || device.label}</option>`;
+        const name = device.label || device.name || "Unnamed Device";
+        deviceSelect.innerHTML += `<option value="${device.deviceId}">${name}</option>`;
       });
 
       // Populate scenes dropdown
       sceneSelect.innerHTML = '<option value="">-- Select scene --</option>';
       scenesData.items.forEach(scene => {
-        sceneSelect.innerHTML += `<option value="${scene.sceneId}">${scene.name || scene.label}</option>`;
+        const name = scene.sceneName || scene.name || "Unnamed Scene";
+        sceneSelect.innerHTML += `<option value="${scene.sceneId}">${name}</option>`;
       });
 
       selectorsDiv.style.display = 'block';
@@ -107,10 +109,10 @@
   deviceSelect.onchange = () => {
     errorDiv.textContent = '';
     statusDiv.textContent = '';
-    sceneSelect.value = ''; // reset scene
-    const id = deviceSelect.value;
-    if (id) {
-      currentSelection = { type: 'device', id };
+    if (deviceSelect.value) {
+      // Reset scene select if device chosen
+      if (sceneSelect.value) sceneSelect.value = "";
+      currentSelection = { type: 'device', id: deviceSelect.value };
       btnOn.style.display = 'inline-block';
       btnOff.style.display = 'inline-block';
       btnExecute.style.display = 'none';
@@ -124,10 +126,10 @@
   sceneSelect.onchange = () => {
     errorDiv.textContent = '';
     statusDiv.textContent = '';
-    deviceSelect.value = ''; // reset device
-    const id = sceneSelect.value;
-    if (id) {
-      currentSelection = { type: 'scene', id };
+    if (sceneSelect.value) {
+      // Reset device select if scene chosen
+      if (deviceSelect.value) deviceSelect.value = "";
+      currentSelection = { type: 'scene', id: sceneSelect.value };
       btnOn.style.display = 'none';
       btnOff.style.display = 'none';
       btnExecute.style.display = 'inline-block';
@@ -169,7 +171,7 @@
       });
       if (!res.ok) throw new Error('Failed to send command');
 
-      const data = await res.json();
+      await res.json();
       statusDiv.textContent = 'Command sent successfully.';
     } catch (err) {
       errorDiv.textContent = 'Error sending command: ' + err.message;
@@ -179,7 +181,7 @@
 
   btnOn.onclick = () => sendControlCommand('on');
   btnOff.onclick = () => sendControlCommand('off');
-  btnExecute.onclick = () => sendControlCommand(); // no command needed for scenes
+  btnExecute.onclick = () => sendControlCommand();
 
   resetControlButtons();
 </script>
