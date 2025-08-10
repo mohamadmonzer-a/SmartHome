@@ -1,696 +1,405 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SmartThings Controller</title>
-<style>
-  /* Your existing styles here */
-  /* ... (omitted for brevity, keep your current styles) */
-
-  /* New styles for login/logout */
-  #loginBtn, #logoutBtn {
-    background-color: #2563eb;
-    color: white;
-    box-shadow: 0 3px 6px rgba(37, 99, 235, 0.3);
-    border: none;
-    border-radius: 6px;
-    padding: 0.5rem 1.2rem;
-    cursor: pointer;
-    font-size: 1rem;
-    margin: 0 auto 1.5rem auto;
-    display: block;
-    max-width: 180px;
-    transition: background-color 0.3s ease;
-  }
-  #loginBtn:hover, #logoutBtn:hover {
-    background-color: #1e40af;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SmartThings Controller</title>
+  <style>
+    /* Basic styling */
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 480px;
+      margin: 3rem auto;
+      background: #f0f4ff;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+      color: #222;
+    }
+    h1 {
+      text-align: center;
+      color: #1e40af;
+    }
+    button, select {
+      font-size: 1rem;
+      padding: 0.5rem 1.2rem;
+      margin-top: 0.5rem;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    button {
+      background-color: #2563eb;
+      color: white;
+      box-shadow: 0 3px 6px rgba(37, 99, 235, 0.3);
+    }
+    button:hover:not(:disabled) {
+      background-color: #1e40af;
+    }
+    button:disabled {
+      background-color: #a5b4fc;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    select {
+      width: 100%;
+      background: white;
+      border: 1.5px solid #bbb;
+      border-radius: 6px;
+      padding: 0.5rem 0.8rem;
+      color: #333;
+    }
+    label {
+      font-weight: 600;
+      display: block;
+      margin-top: 1rem;
+      margin-bottom: 0.3rem;
+    }
+    #selectors {
+      background: white;
+      padding: 1rem 1.5rem;
+      border-radius: 10px;
+      box-shadow: 0 6px 12px rgb(0 0 0 / 0.1);
+    }
+    #controlButtons {
+      margin-top: 1.5rem;
+      text-align: center;
+    }
+    #controlButtons button {
+      margin: 0 0.5rem;
+      min-width: 80px;
+    }
+    #status, #error, #currentState {
+      margin-top: 1rem;
+      padding: 0.8rem 1rem;
+      border-radius: 8px;
+      font-weight: 600;
+      user-select: none;
+    }
+    #status {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    #error {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+    #currentState {
+      background: #e0e7ff;
+      color: #3730a3;
+      line-height: 1.5;
+    }
+    #currentState span.label {
+      font-weight: 700;
+      margin-right: 0.5rem;
+    }
+  </style>
 </head>
 <body>
+  <h1>SmartThings Controller</h1>
 
-<h1>SmartThings Controller</h1>
+  <button id="logoutBtn">Logout</button>
+  <button id="scanBtn">Scan Devices & Scenes</button>
 
-<!-- LOGIN / LOGOUT BUTTONS -->
-<button id="loginBtn" style="display:none;">Login with Google</button>
-<button id="logoutBtn" style="display:none;">Logout</button>
+  <div id="selectors" style="display:none;">
+    <label for="deviceSelect">Select Device:</label>
+    <select id="deviceSelect">
+      <option value="">-- Select device --</option>
+    </select>
 
-<!-- Existing Scan and controls -->
-<button id="scanBtn" style="display:none;">Scan Devices & Scenes</button>
+    <label for="sceneSelect">Select Scene:</label>
+    <select id="sceneSelect">
+      <option value="">-- Select scene --</option>
+    </select>
+  </div>
 
-<div id="selectors" style="display:none;">
-  <label for="deviceSelect">Select Device:</label>
-  <select id="deviceSelect">
-    <option value="">-- Select device --</option>
-  </select>
+  <div id="controlButtons" style="display:none;">
+    <button id="btnOn" disabled>On</button>
+    <button id="btnOff" disabled>Off</button>
+    <button id="btnExecute" style="display:none;">Execute Scene</button>
+  </div>
 
-  <label for="sceneSelect">Select Scene:</label>
-  <select id="sceneSelect">
-    <option value="">-- Select scene --</option>
-  </select>
-</div>
+  <div id="currentState" style="display:none;">
+    <div><span class="label">Health Status:</span><span id="healthStatus">N/A</span></div>
+    <div><span class="label">Switch Status:</span><span id="switchStatus">N/A</span></div>
+  </div>
 
-<div id="controlButtons" style="display:none;">
-  <button id="btnOn" disabled>On</button>
-  <button id="btnOff" disabled>Off</button>
-  <button id="btnExecute" style="display:none;">Execute Scene</button>
-</div>
+  <div id="status" style="display:none;"></div>
+  <div id="error" style="display:none;"></div>
 
-<div id="currentState" style="display:none;">
-  <div><span class="label">Health Status:</span><span id="healthStatus">N/A</span></div>
-  <div><span class="label">Switch Status:</span><span id="switchStatus">N/A</span></div>
-</div>
+  <script>
+    const WORKER_URL = "https://smarthome-silver.monzer-mohamad-a.workers.dev";
 
-<div id="status" style="display:none;"></div>
-<div id="error" style="display:none;"></div>
+    // DOM Elements
+    const logoutBtn = document.getElementById('logoutBtn');
+    const scanBtn = document.getElementById('scanBtn');
+    const deviceSelect = document.getElementById('deviceSelect');
+    const sceneSelect = document.getElementById('sceneSelect');
+    const selectorsDiv = document.getElementById('selectors');
+    const controlButtonsDiv = document.getElementById('controlButtons');
+    const btnOn = document.getElementById('btnOn');
+    const btnOff = document.getElementById('btnOff');
+    const btnExecute = document.getElementById('btnExecute');
+    const statusDiv = document.getElementById('status');
+    const errorDiv = document.getElementById('error');
+    const currentStateDiv = document.getElementById('currentState');
+    const healthStatusSpan = document.getElementById('healthStatus');
+    const switchStatusSpan = document.getElementById('switchStatus');
 
-<script>
-  const WORKER_URL = "https://smarthome-silver.monzer-mohamad-a.workers.dev";
+    let currentSelection = { type: null, id: null };
 
-  // DOM Elements
-  const loginBtn = document.getElementById('loginBtn');
-  const logoutBtn = document.getElementById('logoutBtn');
-  const scanBtn = document.getElementById('scanBtn');
-  const deviceSelect = document.getElementById('deviceSelect');
-  const sceneSelect = document.getElementById('sceneSelect');
-  const selectorsDiv = document.getElementById('selectors');
-  const controlButtonsDiv = document.getElementById('controlButtons');
-  const btnOn = document.getElementById('btnOn');
-  const btnOff = document.getElementById('btnOff');
-  const btnExecute = document.getElementById('btnExecute');
-  const statusDiv = document.getElementById('status');
-  const errorDiv = document.getElementById('error');
-  const currentStateDiv = document.getElementById('currentState');
-  const healthStatusSpan = document.getElementById('healthStatus');
-  const switchStatusSpan = document.getElementById('switchStatus');
-
-  let currentSelection = { type: null, id: null };
-
-  // --- LOGIN FLOW ---
-
-  // Check login state on page load
-  window.onload = () => {
-    const loggedIn = getCookie("session") || localStorage.getItem("session");
-    if (loggedIn) {
-      localStorage.setItem("session", loggedIn);
-      showAppUI();
-    } else {
-      showLoginUI();
+    // Check login by fetching an API endpoint with credentials
+    async function checkLogin() {
+      try {
+        const res = await fetch(`${WORKER_URL}/devices`, { credentials: 'include' });
+        if (res.status === 401) {
+          // Not logged in, redirect to login page
+          window.location.href = 'login.html';
+          return false;
+        }
+        if (!res.ok) throw new Error('Error checking login');
+        return true;
+      } catch (e) {
+        alert('Network or server error. Please try again.');
+        return false;
+      }
     }
-  };
 
-  // Show login button only
-  function showLoginUI() {
-    loginBtn.style.display = 'block';
-    logoutBtn.style.display = 'none';
-    scanBtn.style.display = 'none';
-    selectorsDiv.style.display = 'none';
-    controlButtonsDiv.style.display = 'none';
-    currentStateDiv.style.display = 'none';
-  }
+    // Initialize on page load
+    window.onload = async () => {
+      const loggedIn = await checkLogin();
+      if (loggedIn) {
+        showAppUI();
+      }
+    };
 
-  // Show main app UI and logout button
-  function showAppUI() {
-    loginBtn.style.display = 'none';
-    logoutBtn.style.display = 'block';
-    scanBtn.style.display = 'inline-block';
-  }
+    function showAppUI() {
+      logoutBtn.style.display = 'inline-block';
+      scanBtn.style.display = 'inline-block';
+    }
 
-  // Login button click - redirect to Worker login endpoint
-  loginBtn.onclick = () => {
-    window.location.href = `${WORKER_URL}/login`;
-  };
+    function hideAppUI() {
+      logoutBtn.style.display = 'none';
+      scanBtn.style.display = 'none';
+      selectorsDiv.style.display = 'none';
+      controlButtonsDiv.style.display = 'none';
+      currentStateDiv.style.display = 'none';
+    }
 
-  // Logout button click - clear cookies/localStorage and reset UI
-  logoutBtn.onclick = () => {
-    eraseCookie("session");
-    localStorage.removeItem("session");
-    clearMessages();
+    logoutBtn.onclick = () => {
+      // Clear session cookie by calling Worker logout or clear locally and redirect login
+      document.cookie = "session=; Max-Age=0; path=/; Secure; SameSite=Lax";
+      window.location.href = 'login.html';
+    };
+
+    scanBtn.onclick = async () => {
+      clearMessages();
+      showStatus('Scanning devices and scenes...');
+      try {
+        const [devicesRes, scenesRes] = await Promise.all([
+          fetch(`${WORKER_URL}/devices`, { credentials: 'include' }),
+          fetch(`${WORKER_URL}/scenes`, { credentials: 'include' })
+        ]);
+
+        if (devicesRes.status === 401 || scenesRes.status === 401) {
+          // Session expired or unauthorized, redirect to login
+          window.location.href = 'login.html';
+          return;
+        }
+
+        if (!devicesRes.ok) throw new Error('Failed to fetch devices');
+        if (!scenesRes.ok) throw new Error('Failed to fetch scenes');
+
+        const devicesData = await devicesRes.json();
+        const scenesData = await scenesRes.json();
+
+        deviceSelect.innerHTML = '<option value="">-- Select device --</option>';
+        devicesData.items.forEach(device => {
+          const name = device.label || device.name || "Unnamed Device";
+          deviceSelect.innerHTML += `<option value="${device.deviceId}">${escapeHtml(name)}</option>`;
+        });
+
+        sceneSelect.innerHTML = '<option value="">-- Select scene --</option>';
+        scenesData.items.forEach(scene => {
+          const name = scene.sceneName || scene.name || "Unnamed Scene";
+          sceneSelect.innerHTML += `<option value="${scene.sceneId}">${escapeHtml(name)}</option>`;
+        });
+
+        selectorsDiv.style.display = 'block';
+        controlButtonsDiv.style.display = 'none';
+        currentStateDiv.style.display = 'none';
+        showStatus('Scan complete. Select a device or scene.');
+      } catch (err) {
+        showError('Error scanning devices/scenes: ' + err.message);
+        selectorsDiv.style.display = 'none';
+        controlButtonsDiv.style.display = 'none';
+        currentStateDiv.style.display = 'none';
+      }
+    };
+
+    function resetControlButtons() {
+      btnOn.disabled = true;
+      btnOff.disabled = true;
+      btnExecute.style.display = 'none';
+      controlButtonsDiv.style.display = 'none';
+      currentStateDiv.style.display = 'none';
+    }
+
+    deviceSelect.onchange = async () => {
+      clearMessages();
+      if (deviceSelect.value) {
+        if (sceneSelect.value) sceneSelect.value = "";
+        currentSelection = { type: 'device', id: deviceSelect.value };
+
+        btnOn.disabled = false;
+        btnOff.disabled = false;
+        btnExecute.style.display = 'none';
+        controlButtonsDiv.style.display = 'block';
+
+        await fetchDeviceStatus(currentSelection.id);
+      } else {
+        currentSelection = { type: null, id: null };
+        resetControlButtons();
+      }
+    };
+
+    sceneSelect.onchange = () => {
+      clearMessages();
+      if (sceneSelect.value) {
+        if (deviceSelect.value) deviceSelect.value = "";
+        currentSelection = { type: 'scene', id: sceneSelect.value };
+
+        btnOn.disabled = true;
+        btnOff.disabled = true;
+        btnExecute.style.display = 'inline-block';
+        controlButtonsDiv.style.display = 'block';
+
+        currentStateDiv.style.display = 'none';
+      } else {
+        currentSelection = { type: null, id: null };
+        resetControlButtons();
+      }
+    };
+
+    async function fetchDeviceStatus(deviceId) {
+      currentStateDiv.style.display = 'block';
+      healthStatusSpan.textContent = 'Loading...';
+      switchStatusSpan.textContent = 'Loading...';
+
+      try {
+        const res = await fetch(`${WORKER_URL}/device-status?id=${encodeURIComponent(deviceId)}`, { credentials: 'include' });
+        if (res.status === 401) {
+          window.location.href = 'login.html';
+          return;
+        }
+        if (!res.ok) throw new Error('Failed to fetch device status');
+        const data = await res.json();
+
+        let healthStatus = "Unknown";
+        let switchStatus = "Unknown";
+
+        if (data.components && data.components.main) {
+          if (data.components.main.healthCheck && data.components.main.healthCheck["DeviceWatch-DeviceStatus"] && data.components.main.healthCheck["DeviceWatch-DeviceStatus"].value) {
+            healthStatus = data.components.main.healthCheck["DeviceWatch-DeviceStatus"].value;
+          }
+          if (data.components.main.switch && data.components.main.switch.switch && data.components.main.switch.switch.value) {
+            switchStatus = data.components.main.switch.switch.value;
+          }
+        }
+
+        healthStatusSpan.textContent = capitalizeFirst(healthStatus);
+        switchStatusSpan.textContent = capitalizeFirst(switchStatus);
+      } catch (err) {
+        healthStatusSpan.textContent = 'Error';
+        switchStatusSpan.textContent = 'Error';
+        showError('Error fetching device status: ' + err.message);
+      }
+    }
+
+    async function sendControlCommand(command) {
+      if (!currentSelection.type || !currentSelection.id) {
+        showError('Please select a device or scene first.');
+        return;
+      }
+      clearMessages();
+      showStatus('Sending command...');
+
+      let body;
+      if (currentSelection.type === 'device') {
+        body = {
+          type: 'device',
+          id: currentSelection.id,
+          command: command
+        };
+      } else {
+        body = {
+          type: 'scene',
+          id: currentSelection.id
+        };
+      }
+
+      try {
+        const res = await fetch(`${WORKER_URL}/control`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(body)
+        });
+        if (res.status === 401) {
+          window.location.href = 'login.html';
+          return;
+        }
+        if (!res.ok) throw new Error('Failed to send command');
+        await res.json();
+        showStatus('Command sent successfully.');
+
+        if (currentSelection.type === 'device') {
+          await fetchDeviceStatus(currentSelection.id);
+        }
+      } catch (err) {
+        showError('Error sending command: ' + err.message);
+      }
+    }
+
+    btnOn.onclick = () => sendControlCommand('on');
+    btnOff.onclick = () => sendControlCommand('off');
+    btnExecute.onclick = () => sendControlCommand();
+
+    // Utility functions
+    function clearMessages() {
+      statusDiv.style.display = 'none';
+      statusDiv.textContent = '';
+      errorDiv.style.display = 'none';
+      errorDiv.textContent = '';
+    }
+    function showStatus(msg) {
+      statusDiv.style.display = 'block';
+      statusDiv.textContent = msg;
+    }
+    function showError(msg) {
+      errorDiv.style.display = 'block';
+      errorDiv.textContent = msg;
+      statusDiv.style.display = 'none';
+      statusDiv.textContent = '';
+    }
+    function capitalizeFirst(str) {
+      if (!str) return '';
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+    function escapeHtml(text) {
+      return text.replace(/[&<>"']/g, function(m) {
+        return ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;'
+        })[m];
+      });
+    }
+
     resetControlButtons();
-    showLoginUI();
-  };
-
-  // --- Main app functions (your existing code) ---
-
-  scanBtn.onclick = async () => {
-    clearMessages();
-    showStatus('Scanning devices and scenes...');
-    try {
-      const [devicesRes, scenesRes] = await Promise.all([
-        fetch(`${WORKER_URL}/devices`, { credentials: 'include' }),
-        fetch(`${WORKER_URL}/scenes`, { credentials: 'include' })
-      ]);
-
-      if (!devicesRes.ok) throw new Error('Failed to fetch devices');
-      if (!scenesRes.ok) throw new Error('Failed to fetch scenes');
-
-      const devicesData = await devicesRes.json();
-      const scenesData = await scenesRes.json();
-
-      deviceSelect.innerHTML = '<option value="">-- Select device --</option>';
-      devicesData.items.forEach(device => {
-        const name = device.label || device.name || "Unnamed Device";
-        deviceSelect.innerHTML += `<option value="${device.deviceId}">${escapeHtml(name)}</option>`;
-      });
-
-      sceneSelect.innerHTML = '<option value="">-- Select scene --</option>';
-      scenesData.items.forEach(scene => {
-        const name = scene.sceneName || scene.name || "Unnamed Scene";
-        sceneSelect.innerHTML += `<option value="${scene.sceneId}">${escapeHtml(name)}</option>`;
-      });
-
-      selectorsDiv.style.display = 'block';
-      controlButtonsDiv.style.display = 'none';
-      currentStateDiv.style.display = 'none';
-      showStatus('Scan complete. Select a device or scene.');
-    } catch (err) {
-      showError('Error scanning devices/scenes: ' + err.message);
-      selectorsDiv.style.display = 'none';
-      controlButtonsDiv.style.display = 'none';
-      currentStateDiv.style.display = 'none';
-    }
-  };
-
-  function resetControlButtons() {
-    btnOn.disabled = true;
-    btnOff.disabled = true;
-    btnExecute.style.display = 'none';
-    controlButtonsDiv.style.display = 'none';
-    currentStateDiv.style.display = 'none';
-  }
-
-  deviceSelect.onchange = async () => {
-    clearMessages();
-    if (deviceSelect.value) {
-      if (sceneSelect.value) sceneSelect.value = "";
-      currentSelection = { type: 'device', id: deviceSelect.value };
-
-      btnOn.disabled = false;
-      btnOff.disabled = false;
-      btnExecute.style.display = 'none';
-      controlButtonsDiv.style.display = 'block';
-
-      await fetchDeviceStatus(currentSelection.id);
-    } else {
-      currentSelection = { type: null, id: null };
-      resetControlButtons();
-    }
-  };
-
-  sceneSelect.onchange = () => {
-    clearMessages();
-    if (sceneSelect.value) {
-      if (deviceSelect.value) deviceSelect.value = "";
-      currentSelection = { type: 'scene', id: sceneSelect.value };
-
-      btnOn.disabled = true;
-      btnOff.disabled = true;
-      btnExecute.style.display = 'inline-block';
-      controlButtonsDiv.style.display = 'block';
-
-      currentStateDiv.style.display = 'none';
-    } else {
-      currentSelection = { type: null, id: null };
-      resetControlButtons();
-    }
-  };
-
-  async function fetchDeviceStatus(deviceId) {
-    currentStateDiv.style.display = 'block';
-    healthStatusSpan.textContent = 'Loading...';
-    switchStatusSpan.textContent = 'Loading...';
-
-    try {
-      const res = await fetch(`${WORKER_URL}/device-status?id=${encodeURIComponent(deviceId)}`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to fetch device status');
-      const data = await res.json();
-
-      // Default values
-      let healthStatus = "Unknown";
-      let switchStatus = "Unknown";
-
-      if (data.components && data.components.main) {
-        // Health Status
-        if (data.components.main.healthCheck && data.components.main.healthCheck["DeviceWatch-DeviceStatus"] && data.components.main.healthCheck["DeviceWatch-DeviceStatus"].value) {
-          healthStatus = data.components.main.healthCheck["DeviceWatch-DeviceStatus"].value;
-        }
-        // Switch Status
-        if (data.components.main.switch && data.components.main.switch.switch && data.components.main.switch.switch.value) {
-          switchStatus = data.components.main.switch.switch.value;
-        }
-      }
-
-      healthStatusSpan.textContent = capitalizeFirst(healthStatus);
-      switchStatusSpan.textContent = capitalizeFirst(switchStatus);
-    } catch (err) {
-      healthStatusSpan.textContent = 'Error';
-      switchStatusSpan.textContent = 'Error';
-      showError('Error fetching device status: ' + err.message);
-    }
-  }
-
-  async function sendControlCommand(command) {
-    if (!currentSelection.type || !currentSelection.id) {
-      showError('Please select a device or scene first.');
-      return;
-    }
-    clearMessages();
-    showStatus('Sending command...');
-
-    let body;
-    if (currentSelection.type === 'device') {
-      body = {
-        type: 'device',
-        id: currentSelection.id,
-        command: command
-      };
-    } else {
-      body = {
-        type: 'scene',
-        id: currentSelection.id
-      };
-    }
-
-    try {
-      const res = await fetch(`${WORKER_URL}/control`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(body)
-      });
-      if (!res.ok) throw new Error('Failed to send command');
-      await res.json();
-      showStatus('Command sent successfully.');
-
-      if (currentSelection.type === 'device') {
-        await fetchDeviceStatus(currentSelection.id);
-      }
-    } catch (err) {
-      showError('Error sending command: ' + err.message);
-    }
-  }
-
-  btnOn.onclick = () => sendControlCommand('on');
-  btnOff.onclick = () => sendControlCommand('off');
-  btnExecute.onclick = () => sendControlCommand();
-
-  // --- Utility functions ---
-
-  function clearMessages() {
-    statusDiv.style.display = 'none';
-    statusDiv.textContent = '';
-    errorDiv.style.display = 'none';
-    errorDiv.textContent = '';
-  }
-  function showStatus(msg) {
-    statusDiv.style.display = 'block';
-    statusDiv.textContent = msg;
-  }
-  function showError(msg) {
-    errorDiv.style.display = 'block';
-    errorDiv.textContent = msg;
-    statusDiv.style.display = 'none';
-    statusDiv.textContent = '';
-  }
-  function capitalizeFirst(str) {
-    if (!str) return '';
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  }
-  function escapeHtml(text) {
-    return text.replace(/[&<>"']/g, function(m) {
-      return ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[m];
-    });
-  }
-
-  // --- Cookie helpers ---
-
-  function getCookie(name) {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop().split(';').shift();
-    return null;
-  }
-
-  function eraseCookie(name) {
-    document.cookie = name + '=; Max-Age=-99999999;';
-  }
-
-  resetControlButtons();
-</script>
-
+  </script>
 </body>
 </html>
-
-<!-- <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SmartThings Controller</title>
-<style>
-  /* Reset and base */
-  * {
-    box-sizing: border-box;
-  }
-  body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: #f0f4ff;
-    margin: 2rem auto;
-    max-width: 480px;
-    padding: 1rem 2rem 3rem 2rem;
-    color: #222;
-  }
-  h1 {
-    text-align: center;
-    color: #1e40af;
-    margin-bottom: 1.5rem;
-  }
-  button, select {
-    font-size: 1rem;
-    padding: 0.5rem 1.2rem;
-    margin-top: 0.5rem;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-  }
-  button {
-    background-color: #2563eb;
-    color: white;
-    box-shadow: 0 3px 6px rgba(37, 99, 235, 0.3);
-  }
-  button:hover:not(:disabled) {
-    background-color: #1e40af;
-  }
-  button:disabled {
-    background-color: #a5b4fc;
-    cursor: not-allowed;
-    box-shadow: none;
-  }
-  select {
-    width: 100%;
-    background: white;
-    border: 1.5px solid #bbb;
-    border-radius: 6px;
-    padding: 0.5rem 0.8rem;
-    color: #333;
-  }
-  label {
-    font-weight: 600;
-    display: block;
-    margin-top: 1rem;
-    margin-bottom: 0.3rem;
-  }
-  #selectors {
-    background: white;
-    padding: 1rem 1.5rem;
-    border-radius: 10px;
-    box-shadow: 0 6px 12px rgb(0 0 0 / 0.1);
-  }
-  #controlButtons {
-    margin-top: 1.5rem;
-    text-align: center;
-  }
-  #controlButtons button {
-    margin: 0 0.5rem;
-    min-width: 80px;
-  }
-  #status, #error, #currentState {
-    margin-top: 1rem;
-    padding: 0.8rem 1rem;
-    border-radius: 8px;
-    font-weight: 600;
-    user-select: none;
-  }
-  #status {
-    background: #d1fae5;
-    color: #065f46;
-  }
-  #error {
-    background: #fee2e2;
-    color: #b91c1c;
-  }
-  #currentState {
-    background: #e0e7ff;
-    color: #3730a3;
-    line-height: 1.5;
-  }
-  #currentState span.label {
-    font-weight: 700;
-    margin-right: 0.5rem;
-  }
-</style>
-</head>
-<body>
-
-<h1>SmartThings Controller</h1>
-
-<button id="scanBtn">Scan Devices & Scenes</button>
-
-<div id="selectors" style="display:none;">
-  <label for="deviceSelect">Select Device:</label>
-  <select id="deviceSelect">
-    <option value="">-- Select device --</option>
-  </select>
-
-  <label for="sceneSelect">Select Scene:</label>
-  <select id="sceneSelect">
-    <option value="">-- Select scene --</option>
-  </select>
-</div>
-
-<div id="controlButtons" style="display:none;">
-  <button id="btnOn" disabled>On</button>
-  <button id="btnOff" disabled>Off</button>
-  <button id="btnExecute" style="display:none;">Execute Scene</button>
-</div>
-
-<div id="currentState" style="display:none;">
-  <div><span class="label">Health Status:</span><span id="healthStatus">N/A</span></div>
-  <div><span class="label">Switch Status:</span><span id="switchStatus">N/A</span></div>
-</div>
-
-<div id="status" style="display:none;"></div>
-<div id="error" style="display:none;"></div>
-
-<script>
-  const WORKER_URL = "https://smarthome-silver.monzer-mohamad-a.workers.dev";
-
-  const scanBtn = document.getElementById('scanBtn');
-  const deviceSelect = document.getElementById('deviceSelect');
-  const sceneSelect = document.getElementById('sceneSelect');
-  const selectorsDiv = document.getElementById('selectors');
-  const controlButtonsDiv = document.getElementById('controlButtons');
-  const btnOn = document.getElementById('btnOn');
-  const btnOff = document.getElementById('btnOff');
-  const btnExecute = document.getElementById('btnExecute');
-  const statusDiv = document.getElementById('status');
-  const errorDiv = document.getElementById('error');
-  const currentStateDiv = document.getElementById('currentState');
-  const healthStatusSpan = document.getElementById('healthStatus');
-  const switchStatusSpan = document.getElementById('switchStatus');
-
-  let currentSelection = { type: null, id: null };
-
-  scanBtn.onclick = async () => {
-    clearMessages();
-    showStatus('Scanning devices and scenes...');
-    try {
-      const [devicesRes, scenesRes] = await Promise.all([
-        fetch(`${WORKER_URL}/devices`),
-        fetch(`${WORKER_URL}/scenes`)
-      ]);
-
-      if (!devicesRes.ok) throw new Error('Failed to fetch devices');
-      if (!scenesRes.ok) throw new Error('Failed to fetch scenes');
-
-      const devicesData = await devicesRes.json();
-      const scenesData = await scenesRes.json();
-
-      deviceSelect.innerHTML = '<option value="">-- Select device --</option>';
-      devicesData.items.forEach(device => {
-        const name = device.label || device.name || "Unnamed Device";
-        deviceSelect.innerHTML += `<option value="${device.deviceId}">${escapeHtml(name)}</option>`;
-      });
-
-      sceneSelect.innerHTML = '<option value="">-- Select scene --</option>';
-      scenesData.items.forEach(scene => {
-        const name = scene.sceneName || scene.name || "Unnamed Scene";
-        sceneSelect.innerHTML += `<option value="${scene.sceneId}">${escapeHtml(name)}</option>`;
-      });
-
-      selectorsDiv.style.display = 'block';
-      controlButtonsDiv.style.display = 'none';
-      currentStateDiv.style.display = 'none';
-      showStatus('Scan complete. Select a device or scene.');
-    } catch (err) {
-      showError('Error scanning devices/scenes: ' + err.message);
-      selectorsDiv.style.display = 'none';
-      controlButtonsDiv.style.display = 'none';
-      currentStateDiv.style.display = 'none';
-    }
-  };
-
-  function resetControlButtons() {
-    btnOn.disabled = true;
-    btnOff.disabled = true;
-    btnExecute.style.display = 'none';
-    controlButtonsDiv.style.display = 'none';
-    currentStateDiv.style.display = 'none';
-  }
-
-  deviceSelect.onchange = async () => {
-    clearMessages();
-    if (deviceSelect.value) {
-      if (sceneSelect.value) sceneSelect.value = "";
-      currentSelection = { type: 'device', id: deviceSelect.value };
-
-      btnOn.disabled = false;
-      btnOff.disabled = false;
-      btnExecute.style.display = 'none';
-      controlButtonsDiv.style.display = 'block';
-
-      await fetchDeviceStatus(currentSelection.id);
-    } else {
-      currentSelection = { type: null, id: null };
-      resetControlButtons();
-    }
-  };
-
-  sceneSelect.onchange = () => {
-    clearMessages();
-    if (sceneSelect.value) {
-      if (deviceSelect.value) deviceSelect.value = "";
-      currentSelection = { type: 'scene', id: sceneSelect.value };
-
-      btnOn.disabled = true;
-      btnOff.disabled = true;
-      btnExecute.style.display = 'inline-block';
-      controlButtonsDiv.style.display = 'block';
-
-      currentStateDiv.style.display = 'none';
-    } else {
-      currentSelection = { type: null, id: null };
-      resetControlButtons();
-    }
-  };
-
-  async function fetchDeviceStatus(deviceId) {
-    currentStateDiv.style.display = 'block';
-    healthStatusSpan.textContent = 'Loading...';
-    switchStatusSpan.textContent = 'Loading...';
-
-    try {
-      const res = await fetch(`${WORKER_URL}/device-status?id=${encodeURIComponent(deviceId)}`);
-      if (!res.ok) throw new Error('Failed to fetch device status');
-      const data = await res.json();
-
-      // Default values
-      let healthStatus = "Unknown";
-      let switchStatus = "Unknown";
-
-      if (data.components && data.components.main) {
-        // Health Status
-        if (data.components.main.healthCheck && data.components.main.healthCheck["DeviceWatch-DeviceStatus"] && data.components.main.healthCheck["DeviceWatch-DeviceStatus"].value) {
-          healthStatus = data.components.main.healthCheck["DeviceWatch-DeviceStatus"].value;
-        }
-        // Switch Status
-        if (data.components.main.switch && data.components.main.switch.switch && data.components.main.switch.switch.value) {
-          switchStatus = data.components.main.switch.switch.value;
-        }
-      }
-
-      // Capitalize first letter
-      healthStatusSpan.textContent = capitalizeFirst(healthStatus);
-      switchStatusSpan.textContent = capitalizeFirst(switchStatus);
-    } catch (err) {
-      healthStatusSpan.textContent = 'Error';
-      switchStatusSpan.textContent = 'Error';
-      showError('Error fetching device status: ' + err.message);
-    }
-  }
-
-  async function sendControlCommand(command) {
-    if (!currentSelection.type || !currentSelection.id) {
-      showError('Please select a device or scene first.');
-      return;
-    }
-    clearMessages();
-    showStatus('Sending command...');
-
-    let body;
-    if (currentSelection.type === 'device') {
-      body = {
-        type: 'device',
-        id: currentSelection.id,
-        command: command
-      };
-    } else {
-      body = {
-        type: 'scene',
-        id: currentSelection.id
-      };
-    }
-
-    try {
-      const res = await fetch(`${WORKER_URL}/control`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      if (!res.ok) throw new Error('Failed to send command');
-      await res.json();
-      showStatus('Command sent successfully.');
-
-      // Refresh device status if device controlled
-      if (currentSelection.type === 'device') {
-        await fetchDeviceStatus(currentSelection.id);
-      }
-    } catch (err) {
-      showError('Error sending command: ' + err.message);
-    }
-  }
-
-  btnOn.onclick = () => sendControlCommand('on');
-  btnOff.onclick = () => sendControlCommand('off');
-  btnExecute.onclick = () => sendControlCommand();
-
-  function clearMessages() {
-    statusDiv.style.display = 'none';
-    statusDiv.textContent = '';
-    errorDiv.style.display = 'none';
-    errorDiv.textContent = '';
-  }
-  function showStatus(msg) {
-    statusDiv.style.display = 'block';
-    statusDiv.textContent = msg;
-  }
-  function showError(msg) {
-    errorDiv.style.display = 'block';
-    errorDiv.textContent = msg;
-    statusDiv.style.display = 'none';
-    statusDiv.textContent = '';
-  }
-  function capitalizeFirst(str) {
-    if (!str) return '';
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  }
-  function escapeHtml(text) {
-    return text.replace(/[&<>"']/g, function(m) {
-      return ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-      })[m];
-    });
-  }
-
-  resetControlButtons();
-</script>
-
-</body>
-</html>
- -->
