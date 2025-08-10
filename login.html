@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Login - SmartThings Controller</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 480px;
+      margin: 3rem auto;
+      text-align: center;
+      background: #f0f4ff;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    }
+    button {
+      background-color: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 1rem 2rem;
+      font-size: 1.2rem;
+      cursor: pointer;
+      box-shadow: 0 3px 6px rgba(37, 99, 235, 0.3);
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #1e40af;
+    }
+  </style>
+</head>
+<body>
+  <h1>SmartThings Controller</h1>
+  <p>Please login to access your devices and scenes.</p>
+  <button id="loginBtn">Login with Google</button>
+
+  <script>
+    const WORKER_URL = "https://smarthome-silver.monzer-mohamad-a.workers.dev";
+
+    document.getElementById('loginBtn').onclick = () => {
+      // Redirect to your Worker login endpoint (starts OAuth flow)
+      window.location.href = `${WORKER_URL}/login`;
+    };
+  </script>
+</body>
+</html>
