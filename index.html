@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Home Control</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Smart Home Control</h1>
+    <button id="scanBtn">Scan Devices & Scenes</button>
+
+    <div id="selectionArea" style="display:none;">
+      <div>
+        <label for="deviceSelect">Select Device:</label>
+        <select id="deviceSelect"></select>
+      </div>
+      <div>
+        <label for="sceneSelect">Select Scene:</label>
+        <select id="sceneSelect"></select>
+      </div>
+    </div>
+
+    <div id="controlButtons" style="display:none;">
+      <button id="btnOn">ON</button>
+      <button id="btnOff">OFF</button>
+    </div>
+
+    <div id="status"></div>
+  </div>
+
+  <script>
+    const WORKER_URL = "https://YOUR-WORKER-NAME.YOUR-NAME.workers.dev";
+
+    const scanBtn = document.getElementById('scanBtn');
+    const selectionArea = document.getElementById('selectionArea');
+    const deviceSelect = document.getElementById('deviceSelect');
+    const sceneSelect = document.getElementById('sceneSelect');
+    const controlButtons = document.getElementById('controlButtons');
+    const btnOn = document.getElementById('btnOn');
+    const btnOff = document.getElementById('btnOff');
+    const statusDiv = document.getElementById('status');
+
+    let selectedDeviceId = null;
+    let selectedSceneId = null;
+
+    scanBtn.addEventListener('click', async () => {
+      statusDiv.innerText = "Scanning...";
+      try {
+        // Fetch devices
+        const devicesRes = await fetch(`${WORKER_URL}/devices`);
+        const devices = await devicesRes.json();
+
+        // Fetch scenes
+        const scenesRes = await fetch(`${WORKER_URL}/scenes`);
+        const scenes = await scenesRes.json();
+
+        // Populate dropdowns
+        deviceSelect.innerHTML = "<option value=''>-- Select Device --</option>";
+        devices.items.forEach(d => {
+          deviceSelect.innerHTML += `<option value="${d.deviceId}">${d.label}</option>`;
+        });
+
+        sceneSelect.innerHTML = "<option value=''>-- Select Scene --</option>";
+        scenes.items.forEach(s => {
+          sceneSelect.innerHTML += `<option value="${s.sceneId}">${s.name}</option>`;
+        });
+
+        selectionArea.style.display = "block";
+        statusDiv.innerText = "Devices & Scenes loaded.";
+      } catch (err) {
+        statusDiv.innerText = "Error scanning devices/scenes.";
+        console.error(err);
+      }
+    });
+
+    deviceSelect.addEventListener('change', () => {
+      selectedDeviceId = deviceSelect.value || null;
+      selectedSceneId = null;
+      sceneSelect.value = '';
+      controlButtons.style.display = selectedDeviceId ? "block" : "none";
+    });
+
+    sceneSelect.addEventListener('change', () => {
+      selectedSceneId = sceneSelect.value || null;
+      selectedDeviceId = null;
+      deviceSelect.value = '';
+      controlButtons.style.display = selectedSceneId ? "block" : "none";
+    });
+
+    btnOn.addEventListener('click', () => sendCommand('on'));
+    btnOff.addEventListener('click', () => sendCommand('off'));
+
+    function sendCommand(command) {
+      statusDiv.innerText = "Sending command...";
+      let endpoint;
+      let body = {};
+
+      if (selectedDeviceId) {
+        endpoint = `${WORKER_URL}/device/${selectedDeviceId}/command`;
+        body = {
+          commands: [
+            { component: "main", capability: "switch", command: command }
+          ]
+        };
+      } else if (selectedSceneId) {
+        endpoint = `${WORKER_URL}/scene/${selectedSceneId}/execute`;
+        body = {}; // Scene execute might not need body
+      }
+
+      fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      })
+      .then(res => res.json())
+      .then(data => {
+        statusDiv.innerText = "Command sent!";
+        console.log(data);
+      })
+      .catch(err => {
+        statusDiv.innerText = "Error sending command.";
+        console.error(err);
+      });
+    }
+  </script>
+</body>
+</html>
