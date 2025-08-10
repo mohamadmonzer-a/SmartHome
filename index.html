@@ -5,12 +5,92 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>SmartThings Controller</title>
 <style>
-  body { font-family: Arial, sans-serif; margin: 2rem; background: #f5f7fa; }
-  button, select { padding: 0.5rem 1rem; margin: 0.5rem 0; font-size: 1rem; }
-  #controlButtons { margin-top: 1rem; }
-  #status { margin-top: 1rem; color: green; }
-  #error { margin-top: 1rem; color: red; }
-  label { font-weight: bold; margin-right: 0.5rem; }
+  /* Reset and base */
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #e4e9f2;
+    margin: 2rem auto;
+    max-width: 480px;
+    padding: 1rem 2rem 3rem 2rem;
+    color: #333;
+  }
+  h1 {
+    text-align: center;
+    color: #2c3e50;
+    margin-bottom: 1.5rem;
+  }
+  button, select {
+    font-size: 1rem;
+    padding: 0.5rem 1.2rem;
+    margin-top: 0.5rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  button {
+    background-color: #3b82f6;
+    color: white;
+    box-shadow: 0 3px 6px rgba(59,130,246,0.3);
+  }
+  button:hover:not(:disabled) {
+    background-color: #2563eb;
+  }
+  button:disabled {
+    background-color: #a5b4fc;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+  select {
+    width: 100%;
+    background: white;
+    border: 1.5px solid #ccc;
+    border-radius: 6px;
+    padding: 0.5rem 0.8rem;
+    color: #444;
+  }
+  label {
+    font-weight: 600;
+    display: block;
+    margin-top: 1rem;
+    margin-bottom: 0.3rem;
+  }
+  #selectors {
+    background: white;
+    padding: 1rem 1.5rem;
+    border-radius: 10px;
+    box-shadow: 0 6px 10px rgb(0 0 0 / 0.1);
+  }
+  #controlButtons {
+    margin-top: 1.5rem;
+    text-align: center;
+  }
+  #controlButtons button {
+    margin: 0 0.5rem;
+    min-width: 80px;
+  }
+  #status, #error, #currentState {
+    margin-top: 1rem;
+    padding: 0.8rem 1rem;
+    border-radius: 6px;
+    font-weight: 600;
+    user-select: none;
+  }
+  #status {
+    background: #daf0d6;
+    color: #27632a;
+  }
+  #error {
+    background: #f8d7da;
+    color: #7f1d1d;
+  }
+  #currentState {
+    background: #e0e7ff;
+    color: #3730a3;
+  }
 </style>
 </head>
 <body>
@@ -20,28 +100,26 @@
 <button id="scanBtn">Scan Devices & Scenes</button>
 
 <div id="selectors" style="display:none;">
-  <div>
-    <label for="deviceSelect">Select Device:</label>
-    <select id="deviceSelect">
-      <option value="">-- Select device --</option>
-    </select>
-  </div>
-  <div>
-    <label for="sceneSelect">Select Scene:</label>
-    <select id="sceneSelect">
-      <option value="">-- Select scene --</option>
-    </select>
-  </div>
+  <label for="deviceSelect">Select Device:</label>
+  <select id="deviceSelect">
+    <option value="">-- Select device --</option>
+  </select>
+
+  <label for="sceneSelect">Select Scene:</label>
+  <select id="sceneSelect">
+    <option value="">-- Select scene --</option>
+  </select>
 </div>
 
 <div id="controlButtons" style="display:none;">
-  <button id="btnOn">On</button>
-  <button id="btnOff">Off</button>
+  <button id="btnOn" disabled>On</button>
+  <button id="btnOff" disabled>Off</button>
   <button id="btnExecute" style="display:none;">Execute Scene</button>
 </div>
 
-<div id="status"></div>
-<div id="error"></div>
+<div id="currentState" style="display:none;">Current State: <span id="stateValue">N/A</span></div>
+<div id="status" style="display:none;"></div>
+<div id="error" style="display:none;"></div>
 
 <script>
   const WORKER_URL = "https://smarthome-silver.monzer-mohamad-a.workers.dev";
@@ -56,11 +134,14 @@
   const btnExecute = document.getElementById('btnExecute');
   const statusDiv = document.getElementById('status');
   const errorDiv = document.getElementById('error');
+  const currentStateDiv = document.getElementById('currentState');
+  const stateValueSpan = document.getElementById('stateValue');
 
   let currentSelection = { type: null, id: null };
 
   scanBtn.onclick = async () => {
-    errorDiv.textContent = '';
+    clearMessages();
+    statusDiv.style.display = 'block';
     statusDiv.textContent = 'Scanning devices and scenes...';
     try {
       const [devicesRes, scenesRes] = await Promise.all([
@@ -74,79 +155,119 @@
       const devicesData = await devicesRes.json();
       const scenesData = await scenesRes.json();
 
-      // Populate devices dropdown
       deviceSelect.innerHTML = '<option value="">-- Select device --</option>';
       devicesData.items.forEach(device => {
         const name = device.label || device.name || "Unnamed Device";
-        deviceSelect.innerHTML += `<option value="${device.deviceId}">${name}</option>`;
+        deviceSelect.innerHTML += `<option value="${device.deviceId}">${escapeHtml(name)}</option>`;
       });
 
-      // Populate scenes dropdown
       sceneSelect.innerHTML = '<option value="">-- Select scene --</option>';
       scenesData.items.forEach(scene => {
         const name = scene.sceneName || scene.name || "Unnamed Scene";
-        sceneSelect.innerHTML += `<option value="${scene.sceneId}">${name}</option>`;
+        sceneSelect.innerHTML += `<option value="${scene.sceneId}">${escapeHtml(name)}</option>`;
       });
 
       selectorsDiv.style.display = 'block';
       controlButtonsDiv.style.display = 'none';
+      currentStateDiv.style.display = 'none';
       statusDiv.textContent = 'Scan complete. Select device or scene.';
     } catch (err) {
+      errorDiv.style.display = 'block';
       errorDiv.textContent = 'Error scanning devices/scenes: ' + err.message;
-      statusDiv.textContent = '';
+      statusDiv.style.display = 'none';
       selectorsDiv.style.display = 'none';
       controlButtonsDiv.style.display = 'none';
+      currentStateDiv.style.display = 'none';
     }
   };
 
   function resetControlButtons() {
-    btnOn.style.display = 'inline-block';
-    btnOff.style.display = 'inline-block';
+    btnOn.disabled = true;
+    btnOff.disabled = true;
     btnExecute.style.display = 'none';
     controlButtonsDiv.style.display = 'none';
+    currentStateDiv.style.display = 'none';
   }
 
-  deviceSelect.onchange = () => {
-    errorDiv.textContent = '';
-    statusDiv.textContent = '';
+  deviceSelect.onchange = async () => {
+    clearMessages();
     if (deviceSelect.value) {
-      // Reset scene select if device chosen
       if (sceneSelect.value) sceneSelect.value = "";
       currentSelection = { type: 'device', id: deviceSelect.value };
-      btnOn.style.display = 'inline-block';
-      btnOff.style.display = 'inline-block';
+
+      btnOn.disabled = false;
+      btnOff.disabled = false;
       btnExecute.style.display = 'none';
       controlButtonsDiv.style.display = 'block';
+
+      // Fetch current device status
+      await fetchDeviceStatus(currentSelection.id);
     } else {
       currentSelection = { type: null, id: null };
-      controlButtonsDiv.style.display = 'none';
+      resetControlButtons();
     }
   };
 
   sceneSelect.onchange = () => {
-    errorDiv.textContent = '';
-    statusDiv.textContent = '';
+    clearMessages();
     if (sceneSelect.value) {
-      // Reset device select if scene chosen
       if (deviceSelect.value) deviceSelect.value = "";
       currentSelection = { type: 'scene', id: sceneSelect.value };
-      btnOn.style.display = 'none';
-      btnOff.style.display = 'none';
+
+      btnOn.disabled = true;
+      btnOff.disabled = true;
       btnExecute.style.display = 'inline-block';
       controlButtonsDiv.style.display = 'block';
+
+      currentStateDiv.style.display = 'none';
     } else {
       currentSelection = { type: null, id: null };
-      controlButtonsDiv.style.display = 'none';
+      resetControlButtons();
     }
   };
 
+  async function fetchDeviceStatus(deviceId) {
+    currentStateDiv.style.display = 'block';
+    stateValueSpan.textContent = 'Loading...';
+
+    try {
+      const res = await fetch(`${WORKER_URL}/device-status?id=${encodeURIComponent(deviceId)}`);
+      if (!res.ok) throw new Error('Failed to fetch device status');
+      const data = await res.json();
+
+      // Try to find switch state (usually capability "switch" with attribute "switch")
+      let switchState = "Unknown";
+
+      // Loop through components and capabilities to find the switch state attribute
+      if (data.components) {
+        for (const comp of Object.values(data.components)) {
+          if (comp.capabilities) {
+            for (const cap of Object.values(comp.capabilities)) {
+              if (cap.attributes && cap.attributes.switch && cap.attributes.switch.value) {
+                switchState = cap.attributes.switch.value;
+                break;
+              }
+            }
+          }
+          if (switchState !== "Unknown") break;
+        }
+      }
+
+      stateValueSpan.textContent = switchState.charAt(0).toUpperCase() + switchState.slice(1);
+    } catch (err) {
+      stateValueSpan.textContent = 'Error loading state';
+      errorDiv.style.display = 'block';
+      errorDiv.textContent = 'Error fetching device status: ' + err.message;
+    }
+  }
+
   async function sendControlCommand(command) {
     if (!currentSelection.type || !currentSelection.id) {
-      errorDiv.textContent = 'Please select a device or scene first.';
+      showError('Please select a device or scene first.');
       return;
     }
-    errorDiv.textContent = '';
-    statusDiv.textContent = 'Sending command...';
+    clearMessages();
+    showStatus('Sending command...');
 
     let body;
     if (currentSelection.type === 'device') {
@@ -156,7 +277,6 @@
         command: command
       };
     } else {
-      // For scenes, command param is ignored
       body = {
         type: 'scene',
         id: currentSelection.id
@@ -170,18 +290,51 @@
         body: JSON.stringify(body)
       });
       if (!res.ok) throw new Error('Failed to send command');
-
       await res.json();
-      statusDiv.textContent = 'Command sent successfully.';
+      showStatus('Command sent successfully.');
+
+      // Refresh device status if controlling device
+      if (currentSelection.type === 'device') {
+        await fetchDeviceStatus(currentSelection.id);
+      }
     } catch (err) {
-      errorDiv.textContent = 'Error sending command: ' + err.message;
-      statusDiv.textContent = '';
+      showError('Error sending command: ' + err.message);
     }
   }
 
   btnOn.onclick = () => sendControlCommand('on');
   btnOff.onclick = () => sendControlCommand('off');
   btnExecute.onclick = () => sendControlCommand();
+
+  function clearMessages() {
+    statusDiv.style.display = 'none';
+    statusDiv.textContent = '';
+    errorDiv.style.display = 'none';
+    errorDiv.textContent = '';
+  }
+  function showStatus(msg) {
+    statusDiv.style.display = 'block';
+    statusDiv.textContent = msg;
+  }
+  function showError(msg) {
+    errorDiv.style.display = 'block';
+    errorDiv.textContent = msg;
+    statusDiv.style.display = 'none';
+    statusDiv.textContent = '';
+  }
+
+  // Simple HTML escape to prevent injection in option text
+  function escapeHtml(text) {
+    return text.replace(/[&<>"']/g, function(m) {
+      return ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      })[m];
+    });
+  }
 
   resetControlButtons();
 </script>
