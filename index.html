@@ -1,129 +1,188 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Smart Home Control</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SmartThings Controller</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 2rem; background: #f5f7fa; }
+  button, select { padding: 0.5rem 1rem; margin: 0.5rem 0; font-size: 1rem; }
+  #controlButtons { margin-top: 1rem; }
+  #status { margin-top: 1rem; color: green; }
+  #error { margin-top: 1rem; color: red; }
+  label { font-weight: bold; margin-right: 0.5rem; }
+</style>
 </head>
 <body>
-  <div class="container">
-    <h1>Smart Home Control</h1>
-    <button id="scanBtn">Scan Devices & Scenes</button>
 
-    <div id="selectionArea" style="display:none;">
-      <div>
-        <label for="deviceSelect">Select Device:</label>
-        <select id="deviceSelect"></select>
-      </div>
-      <div>
-        <label for="sceneSelect">Select Scene:</label>
-        <select id="sceneSelect"></select>
-      </div>
-    </div>
+<h1>SmartThings Controller</h1>
 
-    <div id="controlButtons" style="display:none;">
-      <button id="btnOn">ON</button>
-      <button id="btnOff">OFF</button>
-    </div>
+<button id="scanBtn">Scan Devices & Scenes</button>
 
-    <div id="status"></div>
+<div id="selectors" style="display:none;">
+  <div>
+    <label for="deviceSelect">Select Device:</label>
+    <select id="deviceSelect">
+      <option value="">-- Select device --</option>
+    </select>
   </div>
+  <div>
+    <label for="sceneSelect">Select Scene:</label>
+    <select id="sceneSelect">
+      <option value="">-- Select scene --</option>
+    </select>
+  </div>
+</div>
 
-  <script>
-    const WORKER_URL = "https://YOUR-WORKER-NAME.YOUR-NAME.workers.dev";
+<div id="controlButtons" style="display:none;">
+  <button id="btnOn">On</button>
+  <button id="btnOff">Off</button>
+  <button id="btnExecute" style="display:none;">Execute Scene</button>
+</div>
 
-    const scanBtn = document.getElementById('scanBtn');
-    const selectionArea = document.getElementById('selectionArea');
-    const deviceSelect = document.getElementById('deviceSelect');
-    const sceneSelect = document.getElementById('sceneSelect');
-    const controlButtons = document.getElementById('controlButtons');
-    const btnOn = document.getElementById('btnOn');
-    const btnOff = document.getElementById('btnOff');
-    const statusDiv = document.getElementById('status');
+<div id="status"></div>
+<div id="error"></div>
 
-    let selectedDeviceId = null;
-    let selectedSceneId = null;
+<script>
+  const WORKER_URL = "https://smarthome-silver.monzer-mohamad-a.workers.dev";
 
-    scanBtn.addEventListener('click', async () => {
-      statusDiv.innerText = "Scanning...";
-      try {
-        // Fetch devices
-        const devicesRes = await fetch(`${WORKER_URL}/devices`);
-        const devices = await devicesRes.json();
+  const scanBtn = document.getElementById('scanBtn');
+  const deviceSelect = document.getElementById('deviceSelect');
+  const sceneSelect = document.getElementById('sceneSelect');
+  const selectorsDiv = document.getElementById('selectors');
+  const controlButtonsDiv = document.getElementById('controlButtons');
+  const btnOn = document.getElementById('btnOn');
+  const btnOff = document.getElementById('btnOff');
+  const btnExecute = document.getElementById('btnExecute');
+  const statusDiv = document.getElementById('status');
+  const errorDiv = document.getElementById('error');
 
-        // Fetch scenes
-        const scenesRes = await fetch(`${WORKER_URL}/scenes`);
-        const scenes = await scenesRes.json();
+  let currentSelection = { type: null, id: null };
 
-        // Populate dropdowns
-        deviceSelect.innerHTML = "<option value=''>-- Select Device --</option>";
-        devices.items.forEach(d => {
-          deviceSelect.innerHTML += `<option value="${d.deviceId}">${d.label}</option>`;
-        });
+  scanBtn.onclick = async () => {
+    errorDiv.textContent = '';
+    statusDiv.textContent = 'Scanning devices and scenes...';
+    try {
+      const [devicesRes, scenesRes] = await Promise.all([
+        fetch(`${WORKER_URL}/devices`),
+        fetch(`${WORKER_URL}/scenes`)
+      ]);
 
-        sceneSelect.innerHTML = "<option value=''>-- Select Scene --</option>";
-        scenes.items.forEach(s => {
-          sceneSelect.innerHTML += `<option value="${s.sceneId}">${s.name}</option>`;
-        });
+      if (!devicesRes.ok) throw new Error('Failed to fetch devices');
+      if (!scenesRes.ok) throw new Error('Failed to fetch scenes');
 
-        selectionArea.style.display = "block";
-        statusDiv.innerText = "Devices & Scenes loaded.";
-      } catch (err) {
-        statusDiv.innerText = "Error scanning devices/scenes.";
-        console.error(err);
-      }
-    });
+      const devicesData = await devicesRes.json();
+      const scenesData = await scenesRes.json();
 
-    deviceSelect.addEventListener('change', () => {
-      selectedDeviceId = deviceSelect.value || null;
-      selectedSceneId = null;
-      sceneSelect.value = '';
-      controlButtons.style.display = selectedDeviceId ? "block" : "none";
-    });
-
-    sceneSelect.addEventListener('change', () => {
-      selectedSceneId = sceneSelect.value || null;
-      selectedDeviceId = null;
-      deviceSelect.value = '';
-      controlButtons.style.display = selectedSceneId ? "block" : "none";
-    });
-
-    btnOn.addEventListener('click', () => sendCommand('on'));
-    btnOff.addEventListener('click', () => sendCommand('off'));
-
-    function sendCommand(command) {
-      statusDiv.innerText = "Sending command...";
-      let endpoint;
-      let body = {};
-
-      if (selectedDeviceId) {
-        endpoint = `${WORKER_URL}/device/${selectedDeviceId}/command`;
-        body = {
-          commands: [
-            { component: "main", capability: "switch", command: command }
-          ]
-        };
-      } else if (selectedSceneId) {
-        endpoint = `${WORKER_URL}/scene/${selectedSceneId}/execute`;
-        body = {}; // Scene execute might not need body
-      }
-
-      fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      })
-      .then(res => res.json())
-      .then(data => {
-        statusDiv.innerText = "Command sent!";
-        console.log(data);
-      })
-      .catch(err => {
-        statusDiv.innerText = "Error sending command.";
-        console.error(err);
+      // Populate devices dropdown
+      deviceSelect.innerHTML = '<option value="">-- Select device --</option>';
+      devicesData.items.forEach(device => {
+        deviceSelect.innerHTML += `<option value="${device.deviceId}">${device.name || device.label}</option>`;
       });
+
+      // Populate scenes dropdown
+      sceneSelect.innerHTML = '<option value="">-- Select scene --</option>';
+      scenesData.items.forEach(scene => {
+        sceneSelect.innerHTML += `<option value="${scene.sceneId}">${scene.name || scene.label}</option>`;
+      });
+
+      selectorsDiv.style.display = 'block';
+      controlButtonsDiv.style.display = 'none';
+      statusDiv.textContent = 'Scan complete. Select device or scene.';
+    } catch (err) {
+      errorDiv.textContent = 'Error scanning devices/scenes: ' + err.message;
+      statusDiv.textContent = '';
+      selectorsDiv.style.display = 'none';
+      controlButtonsDiv.style.display = 'none';
     }
-  </script>
+  };
+
+  function resetControlButtons() {
+    btnOn.style.display = 'inline-block';
+    btnOff.style.display = 'inline-block';
+    btnExecute.style.display = 'none';
+    controlButtonsDiv.style.display = 'none';
+  }
+
+  deviceSelect.onchange = () => {
+    errorDiv.textContent = '';
+    statusDiv.textContent = '';
+    sceneSelect.value = ''; // reset scene
+    const id = deviceSelect.value;
+    if (id) {
+      currentSelection = { type: 'device', id };
+      btnOn.style.display = 'inline-block';
+      btnOff.style.display = 'inline-block';
+      btnExecute.style.display = 'none';
+      controlButtonsDiv.style.display = 'block';
+    } else {
+      currentSelection = { type: null, id: null };
+      controlButtonsDiv.style.display = 'none';
+    }
+  };
+
+  sceneSelect.onchange = () => {
+    errorDiv.textContent = '';
+    statusDiv.textContent = '';
+    deviceSelect.value = ''; // reset device
+    const id = sceneSelect.value;
+    if (id) {
+      currentSelection = { type: 'scene', id };
+      btnOn.style.display = 'none';
+      btnOff.style.display = 'none';
+      btnExecute.style.display = 'inline-block';
+      controlButtonsDiv.style.display = 'block';
+    } else {
+      currentSelection = { type: null, id: null };
+      controlButtonsDiv.style.display = 'none';
+    }
+  };
+
+  async function sendControlCommand(command) {
+    if (!currentSelection.type || !currentSelection.id) {
+      errorDiv.textContent = 'Please select a device or scene first.';
+      return;
+    }
+    errorDiv.textContent = '';
+    statusDiv.textContent = 'Sending command...';
+
+    let body;
+    if (currentSelection.type === 'device') {
+      body = {
+        type: 'device',
+        id: currentSelection.id,
+        command: command
+      };
+    } else {
+      // For scenes, command param is ignored
+      body = {
+        type: 'scene',
+        id: currentSelection.id
+      };
+    }
+
+    try {
+      const res = await fetch(`${WORKER_URL}/control`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) throw new Error('Failed to send command');
+
+      const data = await res.json();
+      statusDiv.textContent = 'Command sent successfully.';
+    } catch (err) {
+      errorDiv.textContent = 'Error sending command: ' + err.message;
+      statusDiv.textContent = '';
+    }
+  }
+
+  btnOn.onclick = () => sendControlCommand('on');
+  btnOff.onclick = () => sendControlCommand('off');
+  btnExecute.onclick = () => sendControlCommand(); // no command needed for scenes
+
+  resetControlButtons();
+</script>
+
 </body>
 </html>
